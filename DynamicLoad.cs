@@ -1,33 +1,33 @@
 ﻿using System.Reflection;
 
-namespace DinamicLoad
+namespace DynamicLoad
 {
-    public class DinamicLoad
+    public class DynamicLoad
     {
         public static T Assembly_Load_method<T>(string path)
         {
-            if (!File.Exists(path))
+            if (File.Exists(path))
             {
-                throw new FileNotFoundException(path);
+                //Obtiene los ensamblados cargados dentro del dominio de aplicacion del hilo actual
+                var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+
+                //obtener el ensamblado de la biblioteca cargada y agrega al dominio de aplicacion del hilo actual 
+                Assembly assemblyToLoad = Assembly.LoadFrom(Path.GetFullPath(path));
+                AppDomain.CurrentDomain.Load(assemblyToLoad.GetName());
+
+                List<Type> typesExported = assemblyToLoad.GetExportedTypes().ToList();
+                if (!typesExported.Any(eleTypes => eleTypes.GetTypeInfo().GetInterfaces().ToList().Any(eleInter => eleInter.FullName.Equals(typeof(T).FullName))))
+                {
+                    throw new Exception($"no se encontro implementacion de la interfas '{typeof(T).FullName}', en el ensamblado {path}");
+                }
+
+                string typeFullName = typesExported.Find(eleTypes => eleTypes.GetTypeInfo().GetInterfaces().ToList().Any(eleInter => eleInter.FullName.Equals(typeof(T).FullName))).FullName;
+
+                LoadReferencedAssemblies(assemblyToLoad);
+                // Retorna una nueva instancia de <T> dado su nombre
+                return (T)Activator.CreateInstance(assemblyToLoad.GetType(typeFullName));
             }
-            //Obtiene los ensamblados cargados dentro del dominio de aplicacion del hilo actual
-            var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
-
-            //obtener el ensamblado de la biblioteca cargada y agrega al dominio de aplicacion del hilo actual 
-            Assembly assemblyToLoad = Assembly.LoadFrom(Path.GetFullPath(path));
-            AppDomain.CurrentDomain.Load(assemblyToLoad.GetName());
-
-            List<Type> typesExported = assemblyToLoad.GetExportedTypes().ToList();
-            if (!typesExported.Any(eleTypes => eleTypes.GetTypeInfo().GetInterfaces().ToList().Any(eleInter => eleInter.FullName.Equals(typeof(T).FullName))))
-            {
-                throw new Exception($"no se encontro implementacion de la interfas '{typeof(T).FullName}', en el ensamblado {path}");
-            }
-
-            string typeFullName = typesExported.Find(eleTypes => eleTypes.GetTypeInfo().GetInterfaces().ToList().Any(eleInter => eleInter.FullName.Equals(typeof(T).FullName))).FullName;
-
-            LoadReferencedAssemblies(assemblyToLoad);
-            // Retorna una nueva instancia de <T> dado su nombre
-            return (T)Activator.CreateInstance(assemblyToLoad.GetType(typeFullName));
+            throw new FileNotFoundException(path);
         }
 
         private static void LoadReferencedAssemblies(Assembly assemblyToLoad)
@@ -66,6 +66,5 @@ namespace DinamicLoad
                 }
             }
         }
-
     }
 }
